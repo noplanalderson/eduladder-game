@@ -4,10 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EduLadder Battle - By Ridwan Na'im</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Tambahkan Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
   <style>
     @keyframes pulse {
@@ -17,21 +20,40 @@
     .animate-pulse {
       animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
+    
+    /* Custom styles untuk board */
+    .board-cell {
+      width: 48px;
+      height: 48px;
+      position: relative;
+    }
+    
+    @media (max-width: 768px) {
+      .board-cell {
+        width: 32px;
+        height: 32px;
+      }
+    }
   </style>
 </head>
 <body>
   <div id="root"></div>
   
   <script type="text/babel">
+    // Inisialisasi Lucide Icons
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+
     const { useState, useEffect, useRef } = React;
-    const { Play, Upload, Download, Timer, ChevronUp, ChevronDown } = window.lucideReact || {};
     
-    const PlayIcon = Play || (() => <span>▶️</span>);
-    const UploadIcon = Upload || (() => <span>📤</span>);
-    const DownloadIcon = Download || (() => <span>⏬</span>);
-    const TimerIcon = Timer || (() => <span>⌛</span>);
-    const ChevronUpIcon = ChevronUp || (() => <span>🔼</span>);
-    const ChevronDownIcon = ChevronDown || (() => <span>🔽</span>);
+    // Fallback icons sederhana
+    const PlayIcon = () => <span>▶️</span>;
+    const UploadIcon = () => <span>📤</span>;
+    const DownloadIcon = () => <span>⏬</span>;
+    const TimerIcon = () => <span>⌛</span>;
+    const ChevronUpIcon = () => <span>🔼</span>;
+    const ChevronDownIcon = () => <span>🔽</span>;
 
     const SnakesLaddersGame = () => {
       const [gameState, setGameState] = useState('setup');
@@ -54,6 +76,7 @@
       const [ladderBonusQuestion, setLadderBonusQuestion] = useState(null);
       const [snakeSaveQuestion, setSnakeSaveQuestion] = useState(null);
       const [winner, setWinner] = useState(null);
+      const [loading, setLoading] = useState(false);
 
       const gameTimerRef = useRef(null);
       const questionTimerRef = useRef(null);
@@ -66,13 +89,26 @@
         4: 14, 9: 31, 21: 42, 28: 84, 51: 67, 71: 91, 80: 99
       };
 
+      // Cleanup timers
+      useEffect(() => {
+        return () => {
+          if (gameTimerRef.current) clearInterval(gameTimerRef.current);
+          if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+        };
+      }, []);
+
       useEffect(() => {
         if (gameState === 'playing') {
           gameTimerRef.current = setInterval(() => {
             setGameTimer(prev => prev + 1);
           }, 1000);
+        } else {
+          if (gameTimerRef.current) clearInterval(gameTimerRef.current);
         }
-        return () => clearInterval(gameTimerRef.current);
+        
+        return () => {
+          if (gameTimerRef.current) clearInterval(gameTimerRef.current);
+        };
       }, [gameState]);
 
       useEffect(() => {
@@ -86,8 +122,13 @@
               return prev - 1;
             });
           }, 1000);
+        } else {
+          if (questionTimerRef.current) clearInterval(questionTimerRef.current);
         }
-        return () => clearInterval(questionTimerRef.current);
+        
+        return () => {
+          if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+        };
       }, [currentQuestion, questionTimer]);
 
       const formatTime = (seconds) => {
@@ -97,8 +138,10 @@
       };
 
       const handleTimeout = () => {
-        alert(`Waktu habis! Kelompok ${currentTeam} mundur ${currentQuestion.penalty} langkah.`);
-        moveToken(currentTeam, -currentQuestion.penalty, true);
+        if (currentQuestion) {
+          alert(`Waktu habis! Kelompok ${currentTeam} mundur ${currentQuestion.penalty} langkah.`);
+          moveToken(currentTeam, -currentQuestion.penalty, true);
+        }
       };
 
       const downloadTemplate = () => {
@@ -114,68 +157,112 @@ Siapa penemu lampu?,Edison,Einstein,Newton,Tesla,A,Penemu Amerika,5,3,15
 Ibu kota Jawa Barat?,Bandung,Jakarta,Semarang,Surabaya,A,Kota kembang,4,2,10
 Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3,15`;
         
-        const blob = new Blob([template], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'template_soal_ular_tangga.csv';
-        a.click();
+        try {
+          const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'template_soal_ular_tangga.csv';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (error) {
+          console.error('Error downloading template:', error);
+          alert('Error downloading template');
+        }
       };
 
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
+        setLoading(true);
         const reader = new FileReader();
+        
         reader.onload = (event) => {
-          const text = event.target.result;
-          const lines = text.split('\n').slice(1);
-          const parsedQuestions = lines
-            .filter(line => line.trim())
-            .map((line, idx) => {
-              const parts = line.split(',');
-              return {
-                id: idx + 1,
-                question: parts[0]?.trim() || '',
-                options: [
-                  parts[1]?.trim() || '',
-                  parts[2]?.trim() || '',
-                  parts[3]?.trim() || '',
-                  parts[4]?.trim() || ''
-                ],
-                correctAnswer: parts[5]?.trim().toUpperCase() || 'A',
-                clue: parts[6]?.trim() || '',
-                reward: parseInt(parts[7]) || 5,
-                penalty: parseInt(parts[8]) || 3,
-                duration: parseInt(parts[9]) || 15
-              };
-            });
-          
-          setQuestions(parsedQuestions);
-          alert(`${parsedQuestions.length} soal berhasil dimuat!`);
+          try {
+            const text = event.target.result;
+            const lines = text.split('\n').slice(1);
+            const parsedQuestions = lines
+              .filter(line => line.trim())
+              .map((line, idx) => {
+                // Handle CSV dengan quote dan komma di dalam value
+                const parts = line.split(',').reduce((acc, part) => {
+                  if (part.startsWith('"') && !part.endsWith('"')) {
+                    acc.inProgress = part;
+                  } else if (acc.inProgress) {
+                    acc.inProgress += ',' + part;
+                    if (part.endsWith('"')) {
+                      acc.parts.push(acc.inProgress.replace(/"/g, ''));
+                      acc.inProgress = null;
+                    }
+                  } else {
+                    acc.parts.push(part.replace(/"/g, '').trim());
+                  }
+                  return acc;
+                }, { parts: [], inProgress: null }).parts;
+
+                return {
+                  id: idx + 1,
+                  question: parts[0] || 'Pertanyaan tidak tersedia',
+                  options: [
+                    parts[1] || 'Option A',
+                    parts[2] || 'Option B',
+                    parts[3] || 'Option C',
+                    parts[4] || 'Option D'
+                  ],
+                  correctAnswer: (parts[5] || 'A').trim().toUpperCase(),
+                  clue: parts[6] || 'Tidak ada clue',
+                  reward: Math.max(1, parseInt(parts[7]) || 5),
+                  penalty: Math.max(1, parseInt(parts[8]) || 3),
+                  duration: Math.max(5, parseInt(parts[9]) || 15),
+                  used: false
+                };
+              })
+              .filter(q => q.question && q.question !== 'Pertanyaan tidak tersedia');
+            
+            setQuestions(parsedQuestions);
+            alert(`${parsedQuestions.length} soal berhasil dimuat!`);
+          } catch (error) {
+            console.error('Error parsing CSV:', error);
+            alert('Error parsing file CSV. Pastikan format file benar.');
+          } finally {
+            setLoading(false);
+          }
         };
+        
+        reader.onerror = () => {
+          alert('Error reading file');
+          setLoading(false);
+        };
+        
         reader.readAsText(file);
+        // Reset input file
+        e.target.value = '';
       };
 
       const startGame = () => {
-        if (questions.length < 10) {
-          alert('Minimal 10 soal diperlukan untuk memulai game!');
+        if (questions.length < 3) { // Reduced for testing
+          alert('Minimal 3 soal diperlukan untuk memulai game!');
           return;
         }
         setGameState('playing');
+        setGameTimer(0);
         pickQuestion();
       };
 
       const pickQuestion = () => {
         const availableQuestions = questions.filter(q => !q.used);
         if (availableQuestions.length === 0) {
-          setQuestions(questions.map(q => ({ ...q, used: false })));
+          // Reset semua soal jika sudah habis
+          setQuestions(prev => prev.map(q => ({ ...q, used: false })));
           pickQuestion();
           return;
         }
         
         const randomQ = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-        setCurrentQuestion(randomQ);
+        setCurrentQuestion({ ...randomQ });
         setQuestionTimer(randomQ.duration);
         setShowAnswer(false);
         setShowClue(false);
@@ -217,13 +304,20 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
             setDoubleMoveActive(true);
             alert('Double Move aktif! Langkah akan dilipatgandakan jika benar.');
             break;
+          default:
+            break;
         }
         
         setSelectedHelp(helpType);
       };
 
       const handleAnswer = (selectedOption) => {
-        clearInterval(questionTimerRef.current);
+        if (!currentQuestion || showAnswer) return;
+        
+        if (questionTimerRef.current) {
+          clearInterval(questionTimerRef.current);
+        }
+        
         const isCorrect = selectedOption === currentQuestion.correctAnswer;
         const answeringTeam = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
         
@@ -235,6 +329,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
             if (doubleMoveActive && !questionThrown) {
               steps *= 2;
               alert(`Benar! Double Move aktif, maju ${steps} langkah!`);
+              setDoubleMoveActive(false);
             } else {
               alert(`Benar! Maju ${steps} langkah.`);
             }
@@ -246,10 +341,12 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
               moveToken(answeringTeam, -penalty, true);
             } else if (shieldActive) {
               alert('Salah! Tapi Shield melindungi, tidak mundur.');
+              setShieldActive(false);
               nextTurn();
             }
           }
           
+          // Tandai soal sebagai digunakan
           setQuestions(prev => prev.map(q => 
             q.id === currentQuestion.id ? { ...q, used: true } : q
           ));
@@ -268,7 +365,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
           if (newPos >= 100) {
             setWinner(team);
             setGameState('finished');
-            clearInterval(gameTimerRef.current);
+            if (gameTimerRef.current) clearInterval(gameTimerRef.current);
             return newPositions;
           }
           
@@ -343,6 +440,9 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
       };
 
       const resetGame = () => {
+        if (gameTimerRef.current) clearInterval(gameTimerRef.current);
+        if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+        
         setGameState('setup');
         setPositions({ A: 1, B: 1 });
         setHelps({
@@ -352,7 +452,8 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
         setCurrentTeam('A');
         setGameTimer(0);
         setWinner(null);
-        setQuestions(questions.map(q => ({ ...q, used: false })));
+        setQuestions(prev => prev.map(q => ({ ...q, used: false })));
+        setCurrentQuestion(null);
       };
 
       const renderBoard = () => {
@@ -372,23 +473,23 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
               <div
                 key={num}
                 className={`
-                  relative w-12 h-12 border border-gray-300 flex items-center justify-center text-xs font-bold
+                  board-cell border border-gray-300 flex items-center justify-center text-xs font-bold
                   ${isSnakeHead ? 'bg-red-200' : isLadderBottom ? 'bg-green-200' : 'bg-white'}
                 `}
               >
-                <span className="absolute top-0.5 left-1 text-[10px] text-gray-500">{num}</span>
+                <span className="absolute top-0 left-0 text-[8px] text-gray-500 p-1">{num}</span>
                 
-                {isSnakeHead && <ChevronDown className="absolute text-red-600" size={16} />}
-                {isLadderBottom && <ChevronUp className="absolute text-green-600" size={16} />}
+                {isSnakeHead && <ChevronDownIcon />}
+                {isLadderBottom && <ChevronUpIcon />}
                 
-                <div className="flex gap-0.5 mt-2">
+                <div className="flex gap-0.5 mt-3">
                   {hasTeamA && (
-                    <div className="w-5 h-5 rounded-full bg-blue-500 border-2 border-blue-700 text-white text-[10px] flex items-center justify-center font-bold">
+                    <div className="w-3 h-3 rounded-full bg-blue-500 border border-blue-700 text-white text-[8px] flex items-center justify-center font-bold">
                       A
                     </div>
                   )}
                   {hasTeamB && (
-                    <div className="w-5 h-5 rounded-full bg-red-500 border-2 border-red-700 text-white text-[10px] flex items-center justify-center font-bold">
+                    <div className="w-3 h-3 rounded-full bg-red-500 border border-red-700 text-white text-[8px] flex items-center justify-center font-bold">
                       B
                     </div>
                   )}
@@ -402,33 +503,34 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
 
       if (gameState === 'setup') {
         return (
-          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
             <div className="max-w-4xl mx-auto">
-              <h1 className="text-4xl font-bold text-center mb-2 text-purple-800">
+              <h1 className="text-3xl md:text-4xl font-bold text-center mb-2 text-purple-800">
                 🎮 EduLadder Battle by Ridwan Na'im
               </h1>
-              <p className="text-center text-gray-600 mb-8">Game Edukasi untuk 2 Kelompok</p>
+              <p className="text-center text-gray-600 mb-6">Game Edukasi untuk 2 Kelompok</p>
               
-              <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
-                <h2 className="text-2xl font-bold mb-4 text-gray-800">📝 Import Soal</h2>
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <h2 className="text-xl md:text-2xl font-bold mb-4 text-gray-800">📝 Import Soal</h2>
                 
                 <div className="space-y-4">
                   <button
                     onClick={downloadTemplate}
-                    className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition"
+                    className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-4 py-3 rounded-lg hover:bg-green-600 transition"
                   >
-                    <Download size={20} />
-                    Download Template Excel (CSV)
+                    <DownloadIcon />
+                    Download Template CSV
                   </button>
                   
-                  <label className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition cursor-pointer">
-                    <Upload size={20} />
-                    Upload File Soal (CSV)
+                  <label className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white px-4 py-3 rounded-lg hover:bg-blue-600 transition cursor-pointer">
+                    <UploadIcon />
+                    {loading ? 'Memuat...' : 'Upload File Soal (CSV)'}
                     <input
                       type="file"
                       accept=".csv"
                       onChange={handleFileUpload}
                       className="hidden"
+                      disabled={loading}
                     />
                   </label>
                   
@@ -442,9 +544,9 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl shadow-lg p-8">
-                <h2 className="text-2xl font-bold mb-4 text-gray-800">📋 Aturan Game</h2>
-                <ul className="space-y-2 text-gray-700">
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-xl md:text-2xl font-bold mb-4 text-gray-800">📋 Aturan Game</h2>
+                <ul className="space-y-2 text-gray-700 text-sm md:text-base">
                   <li>🎯 Tujuan: Mencapai kotak 100 terlebih dahulu</li>
                   <li>❓ Jawab soal dengan benar untuk maju, salah untuk mundur</li>
                   <li>🪜 Tangga hijau: naik ke atas (dengan soal bonus)</li>
@@ -455,10 +557,10 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                 
                 <button
                   onClick={startGame}
-                  disabled={questions.length < 10}
-                  className="w-full mt-6 flex items-center justify-center gap-2 bg-purple-600 text-white px-8 py-4 rounded-lg hover:bg-purple-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-bold"
+                  disabled={questions.length < 3 || loading}
+                  className="w-full mt-6 flex items-center justify-center gap-2 bg-purple-600 text-white px-6 py-4 rounded-lg hover:bg-purple-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-bold"
                 >
-                  <Play size={24} />
+                  <PlayIcon />
                   Mulai Permainan
                 </button>
               </div>
@@ -469,18 +571,18 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
 
       if (gameState === 'finished') {
         return (
-          <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 p-8 flex items-center justify-center">
-            <div className="bg-white rounded-xl shadow-2xl p-12 text-center max-w-2xl">
+          <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 p-4 flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-2xl p-8 text-center max-w-2xl w-full">
               <div className="text-6xl mb-4">🏆</div>
-              <h1 className="text-5xl font-bold mb-4 text-yellow-600">
+              <h1 className="text-3xl md:text-5xl font-bold mb-4 text-yellow-600">
                 Kelompok {winner} Menang!
               </h1>
-              <p className="text-2xl text-gray-700 mb-6">
+              <p className="text-xl md:text-2xl text-gray-700 mb-6">
                 Waktu: {formatTime(gameTimer)}
               </p>
               <button
                 onClick={resetGame}
-                className="bg-purple-600 text-white px-8 py-4 rounded-lg hover:bg-purple-700 transition text-lg font-bold"
+                className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition text-lg font-bold"
               >
                 Main Lagi
               </button>
@@ -492,120 +594,97 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
       const answeringTeam = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-2">
           <div className="max-w-7xl mx-auto">
-            <div className="bg-white rounded-xl shadow-lg p-4 mb-4 flex items-center justify-between">
+            <div className="bg-white rounded-xl shadow-lg p-3 mb-3 flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-purple-800">🎮 Ular Tangga Pembelajaran</h1>
+                <h1 className="text-xl md:text-2xl font-bold text-purple-800">🎮 Ular Tangga Pembelajaran</h1>
                 <p className="text-sm text-gray-600">Giliran: Kelompok {currentTeam}</p>
               </div>
               <div className="text-right">
                 <div className="flex items-center gap-2 text-lg font-mono">
-                  <Timer size={20} />
+                  <TimerIcon />
                   <span className="font-bold">{formatTime(gameTimer)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               <div className="lg:col-span-2">
-                <div className="bg-white rounded-xl shadow-lg p-4">
-                  <div className="grid grid-cols-10 gap-0.5 border-2 border-gray-400">
+                <div className="bg-white rounded-xl shadow-lg p-3">
+                  <div className="grid grid-cols-10 gap-0 border-2 border-gray-400 mx-auto" style={{maxWidth: 'fit-content'}}>
                     {renderBoard()}
                   </div>
                   
-                  <div className="mt-4 grid grid-cols-2 gap-4">
-                    <div className={`p-4 rounded-lg ${currentTeam === 'A' ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-50'}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-500"></div>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className={`p-3 rounded-lg ${currentTeam === 'A' ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-4 h-4 rounded-full bg-blue-500"></div>
                         <span className="font-bold">Kelompok A</span>
                       </div>
-                      <p className="text-2xl font-bold">Posisi: {positions.A}</p>
+                      <p className="text-lg font-bold">Posisi: {positions.A}</p>
                     </div>
                     
-                    <div className={`p-4 rounded-lg ${currentTeam === 'B' ? 'bg-red-100 border-2 border-red-500' : 'bg-gray-50'}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-red-500"></div>
+                    <div className={`p-3 rounded-lg ${currentTeam === 'B' ? 'bg-red-100 border-2 border-red-500' : 'bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-4 h-4 rounded-full bg-red-500"></div>
                         <span className="font-bold">Kelompok B</span>
                       </div>
-                      <p className="text-2xl font-bold">Posisi: {positions.B}</p>
+                      <p className="text-lg font-bold">Posisi: {positions.B}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {!ladderBonusQuestion && !snakeSaveQuestion && currentQuestion && !showAnswer && (
-                  <div className="bg-white rounded-xl shadow-lg p-4">
-                    <h3 className="font-bold text-lg mb-3">🛠️ Bantuan Kelompok {answeringTeam}</h3>
-                    <div className="space-y-2">
-                      <button
-                        onClick={() => useHelp('throwQuestion')}
-                        disabled={helps[answeringTeam].throwQuestion === 0 || questionThrown}
-                        className="w-full flex items-center justify-between p-2 bg-orange-100 rounded hover:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
-                        <span>🎯 Lempar Soal</span>
-                        <span className="font-bold">{helps[answeringTeam].throwQuestion}</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => useHelp('clue')}
-                        disabled={helps[answeringTeam].clue === 0 || showClue}
-                        className="w-full flex items-center justify-between p-2 bg-yellow-100 rounded hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
-                        <span>💡 Clue</span>
-                        <span className="font-bold">{helps[answeringTeam].clue}</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => useHelp('shield')}
-                        disabled={helps[answeringTeam].shield === 0 || shieldActive}
-                        className="w-full flex items-center justify-between p-2 bg-blue-100 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
-                        <span>🛡️ Shield</span>
-                        <span className="font-bold">{helps[answeringTeam].shield}</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => useHelp('changeQuestion')}
-                        disabled={helps[answeringTeam].changeQuestion === 0}
-                        className="w-full flex items-center justify-between p-2 bg-purple-100 rounded hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
-                        <span>🔄 Ganti Soal</span>
-                        <span className="font-bold">{helps[answeringTeam].changeQuestion}</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => useHelp('doubleMove')}
-                        disabled={helps[answeringTeam].doubleMove === 0 || doubleMoveActive}
-                        className="w-full flex items-center justify-between p-2 bg-green-100 rounded hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
-                        <span>⚡ Double Move</span>
-                        <span className="font-bold">{helps[answeringTeam].doubleMove}</span>
-                      </button>
+                  <div className="bg-white rounded-xl shadow-lg p-3">
+                    <h3 className="font-bold text-md mb-2">🛠️ Bantuan Kelompok {answeringTeam}</h3>
+                    <div className="space-y-1">
+                      {['throwQuestion', 'clue', 'shield', 'changeQuestion', 'doubleMove'].map((helpType) => (
+                        <button
+                          key={helpType}
+                          onClick={() => useHelp(helpType)}
+                          disabled={helps[answeringTeam][helpType] === 0 || 
+                                   (helpType === 'throwQuestion' && questionThrown) ||
+                                   (helpType === 'clue' && showClue) ||
+                                   (helpType === 'shield' && shieldActive) ||
+                                   (helpType === 'doubleMove' && doubleMoveActive)}
+                          className="w-full flex items-center justify-between p-2 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                        >
+                          <span>
+                            {helpType === 'throwQuestion' && '🎯 Lempar Soal'}
+                            {helpType === 'clue' && '💡 Clue'}
+                            {helpType === 'shield' && '🛡️ Shield'}
+                            {helpType === 'changeQuestion' && '🔄 Ganti Soal'}
+                            {helpType === 'doubleMove' && '⚡ Double Move'}
+                          </span>
+                          <span className="font-bold">{helps[answeringTeam][helpType]}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
 
                 {currentQuestion && !ladderBonusQuestion && !snakeSaveQuestion && (
-                  <div className="bg-white rounded-xl shadow-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-bold text-lg">
+                  <div className="bg-white rounded-xl shadow-lg p-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-bold text-md">
                         {questionThrown ? `❓ Soal untuk Kelompok ${answeringTeam}` : `❓ Soal Kelompok ${currentTeam}`}
                       </h3>
-                      <div className={`text-2xl font-bold ${questionTimer <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'}`}>
+                      <div className={`text-xl font-bold ${questionTimer <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'}`}>
                         {questionTimer}s
                       </div>
                     </div>
                     
-                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                      <p className="font-semibold">{currentQuestion.question}</p>
+                    <div className="mb-3 p-2 bg-gray-50 rounded-lg">
+                      <p className="font-semibold text-sm">{currentQuestion.question}</p>
                       {showClue && (
-                        <p className="text-sm text-purple-600 mt-2">💡 Clue: {currentQuestion.clue}</p>
+                        <p className="text-xs text-purple-600 mt-1">💡 Clue: {currentQuestion.clue}</p>
                       )}
                     </div>
                     
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       {currentQuestion.options.map((option, idx) => {
                         const optionLetter = String.fromCharCode(65 + idx);
                         const isCorrect = optionLetter === currentQuestion.correctAnswer;
@@ -620,7 +699,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                             key={idx}
                             onClick={() => !showAnswer && handleAnswer(optionLetter)}
                             disabled={showAnswer}
-                            className={`w-full p-3 rounded-lg border-2 text-left transition ${buttonClass} disabled:cursor-not-allowed`}
+                            className={`w-full p-2 rounded border text-left transition ${buttonClass} disabled:cursor-not-allowed text-xs`}
                           >
                             <span className="font-bold">{optionLetter}.</span> {option}
                             {showAnswer && isCorrect && ' ✓'}
@@ -629,30 +708,30 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                       })}
                     </div>
                     
-                    <div className="mt-3 flex justify-between text-sm text-gray-600">
-                      <span>✅ Benar: +{currentQuestion.reward} langkah</span>
-                      <span>❌ Salah: -{currentQuestion.penalty} langkah</span>
+                    <div className="mt-2 flex justify-between text-xs text-gray-600">
+                      <span>✅ +{currentQuestion.reward}</span>
+                      <span>❌ -{currentQuestion.penalty}</span>
                     </div>
                   </div>
                 )}
 
                 {ladderBonusQuestion && (
-                  <div className="bg-white rounded-xl shadow-lg p-4 border-4 border-green-400">
-                    <h3 className="font-bold text-lg mb-3 text-green-700">
+                  <div className="bg-white rounded-xl shadow-lg p-3 border-2 border-green-400">
+                    <h3 className="font-bold text-md mb-2 text-green-700">
                       🪜 Soal Tangga Bonus!
                     </h3>
-                    <p className="mb-4">Kotak {ladderBonusQuestion.from} → {ladderBonusQuestion.to}</p>
-                    <p className="font-semibold mb-4">10 + 5 = ?</p>
-                    <div className="space-y-2">
+                    <p className="mb-2 text-sm">Kotak {ladderBonusQuestion.from} → {ladderBonusQuestion.to}</p>
+                    <p className="font-semibold mb-2 text-sm">10 + 5 = ?</p>
+                    <div className="space-y-1">
                       <button
                         onClick={() => handleLadderBonus(true)}
-                        className="w-full p-3 bg-green-100 hover:bg-green-200 rounded-lg"
+                        className="w-full p-2 bg-green-100 hover:bg-green-200 rounded text-sm"
                       >
                         15 ✓
                       </button>
                       <button
                         onClick={() => handleLadderBonus(false)}
-                        className="w-full p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                        className="w-full p-2 bg-gray-100 hover:bg-gray-200 rounded text-sm"
                       >
                         20
                       </button>
@@ -661,22 +740,22 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                 )}
 
                 {snakeSaveQuestion && (
-                  <div className="bg-white rounded-xl shadow-lg p-4 border-4 border-red-400">
-                    <h3 className="font-bold text-lg mb-3 text-red-700">
+                  <div className="bg-white rounded-xl shadow-lg p-3 border-2 border-red-400">
+                    <h3 className="font-bold text-md mb-2 text-red-700">
                       🐍 Soal Penyelamat Ular!
                     </h3>
-                    <p className="mb-4">Kotak {snakeSaveQuestion.from} → {snakeSaveQuestion.to}</p>
-                    <p className="font-semibold mb-4">5 × 2 = ?</p>
-                    <div className="space-y-2">
+                    <p className="mb-2 text-sm">Kotak {snakeSaveQuestion.from} → {snakeSaveQuestion.to}</p>
+                    <p className="font-semibold mb-2 text-sm">5 × 2 = ?</p>
+                    <div className="space-y-1">
                       <button
                         onClick={() => handleSnakeSave(true)}
-                        className="w-full p-3 bg-green-100 hover:bg-green-200 rounded-lg"
+                        className="w-full p-2 bg-green-100 hover:bg-green-200 rounded text-sm"
                       >
                         10 ✓
                       </button>
                       <button
                         onClick={() => handleSnakeSave(false)}
-                        className="w-full p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                        className="w-full p-2 bg-gray-100 hover:bg-gray-200 rounded text-sm"
                       >
                         12
                       </button>
@@ -690,6 +769,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
       );
     };
 
+    // Render aplikasi
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<SnakesLaddersGame />);
   </script>
