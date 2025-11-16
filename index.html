@@ -25,29 +25,13 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
     const { Play, Upload, Download, Timer, ChevronUp, ChevronDown } = window.lucideReact || {};
-    const FallbackIcon = ({ name, size = 20 }) => {
-        const iconMap = {
-            Play: '▶',
-            Upload: '⬆',
-            Download: '⬇',
-            Timer: '⏱',
-            ChevronUp: '▲',
-            ChevronDown: '▼'
-        };
-        return <span style={{ fontSize: size }}>{iconMap[name] || '●'}</span>;
-    };
-
-    // Ensure lucideReact object exists and provide fallback icon components without redeclaring existing locals
-    if (!window.lucideReact) {
-        window.lucideReact = {};
-    }
-
-    window.lucideReact.Play = window.lucideReact.Play || ((props) => <FallbackIcon name="Play" {...props} />);
-    window.lucideReact.Upload = window.lucideReact.Upload || ((props) => <FallbackIcon name="Upload" {...props} />);
-    window.lucideReact.Download = window.lucideReact.Download || ((props) => <FallbackIcon name="Download" {...props} />);
-    window.lucideReact.Timer = window.lucideReact.Timer || ((props) => <FallbackIcon name="Timer" {...props} />);
-    window.lucideReact.ChevronUp = window.lucideReact.ChevronUp || ((props) => <FallbackIcon name="ChevronUp" {...props} />);
-    window.lucideReact.ChevronDown = window.lucideReact.ChevronDown || ((props) => <FallbackIcon name="ChevronDown" {...props} />);
+    
+    const PlayIcon = Play || (() => <span>▶️</span>);
+    const UploadIcon = Upload || (() => <span>📤</span>);
+    const DownloadIcon = Download || (() => <span>⏬</span>);
+    const TimerIcon = Timer || (() => <span>⌛</span>);
+    const ChevronUpIcon = ChevronUp || (() => <span>🔼</span>);
+    const ChevronDownIcon = ChevronDown || (() => <span>🔽</span>);
 
     const SnakesLaddersGame = () => {
       const [gameState, setGameState] = useState('setup');
