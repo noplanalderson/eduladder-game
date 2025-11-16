@@ -62,8 +62,8 @@
       const [currentTeam, setCurrentTeam] = useState('A');
       const [positions, setPositions] = useState({ A: 1, B: 1 });
       const [helps, setHelps] = useState({
-        A: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 },
-        B: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 }
+        A: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 },
+        B: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 }
       });
       const [selectedHelp, setSelectedHelp] = useState(null);
       const [showClue, setShowClue] = useState(false);
@@ -446,8 +446,8 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
         setGameState('setup');
         setPositions({ A: 1, B: 1 });
         setHelps({
-          A: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 },
-          B: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 }
+          A: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 },
+          B: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 }
         });
         setCurrentTeam('A');
         setGameTimer(0);
@@ -551,7 +551,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                   <li>❓ Jawab soal dengan benar untuk maju, salah untuk mundur</li>
                   <li>🪜 Tangga hijau: naik ke atas (dengan soal bonus)</li>
                   <li>🐍 Ular merah: turun ke bawah (bisa diselamatkan dengan soal)</li>
-                  <li>🛡️ 5 jenis bantuan per kelompok (masing-masing 5x)</li>
+                  <li>🛡️ 5 jenis bantuan per kelompok</li>
                   <li>⏱️ Setiap soal memiliki batas waktu</li>
                 </ul>
                 
@@ -598,7 +598,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
           <div className="max-w-7xl mx-auto">
             <div className="bg-white rounded-xl shadow-lg p-3 mb-3 flex items-center justify-between">
               <div>
-                <h1 className="text-xl md:text-2xl font-bold text-purple-800">🎮 Ular Tangga Pembelajaran</h1>
+                <h1 className="text-xl md:text-2xl font-bold text-purple-800">🎮 EduLadder Battle</h1>
                 <p className="text-sm text-gray-600">Giliran: Kelompok {currentTeam}</p>
               </div>
               <div className="text-right">
