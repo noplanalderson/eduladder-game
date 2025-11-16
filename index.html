@@ -28,6 +28,30 @@
       position: relative;
     }
     
+    /* Styles untuk popup */
+    .popup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .popup-content {
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      text-align: center;
+      max-width: 90%;
+      width: 400px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    
     @media (max-width: 768px) {
       .board-cell {
         width: 32px;
@@ -62,8 +86,8 @@
       const [currentTeam, setCurrentTeam] = useState('A');
       const [positions, setPositions] = useState({ A: 1, B: 1 });
       const [helps, setHelps] = useState({
-        A: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 },
-        B: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 }
+        A: { throwQuestion: 2, clue: 1, shield: 1, changeQuestion: 1, doubleMove: 2 },
+        B: { throwQuestion: 2, clue: 1, shield: 1, changeQuestion: 1, doubleMove: 2 }
       });
       const [selectedHelp, setSelectedHelp] = useState(null);
       const [showClue, setShowClue] = useState(false);
@@ -77,6 +101,8 @@
       const [snakeSaveQuestion, setSnakeSaveQuestion] = useState(null);
       const [winner, setWinner] = useState(null);
       const [loading, setLoading] = useState(false);
+      const [showWinnerPopup, setShowWinnerPopup] = useState(false);
+      const [winnerReason, setWinnerReason] = useState('');
 
       const gameTimerRef = useRef(null);
       const questionTimerRef = useRef(null);
@@ -131,10 +157,60 @@
         };
       }, [currentQuestion, questionTimer]);
 
+      // Cek apakah soal sudah habis
+      useEffect(() => {
+        if (gameState === 'playing' && questions.length > 0) {
+          const availableQuestions = questions.filter(q => !q.used);
+          if (availableQuestions.length === 0) {
+            endGameByQuestions();
+          }
+        }
+      }, [questions, gameState]);
+
       const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      const endGameByQuestions = () => {
+        // Tentukan pemenang berdasarkan posisi tertinggi
+        let winningTeam = null;
+        let winnerPos = 0;
+        
+        if (positions.A > positions.B) {
+          winningTeam = 'A';
+          winnerPos = positions.A;
+        } else if (positions.B > positions.A) {
+          winningTeam = 'B';
+          winnerPos = positions.B;
+        } else {
+          // Jika posisi sama, tentukan berdasarkan jumlah bantuan tersisa
+          const totalHelpsA = Object.values(helps.A).reduce((a, b) => a + b, 0);
+          const totalHelpsB = Object.values(helps.B).reduce((a, b) => a + b, 0);
+          
+          if (totalHelpsA > totalHelpsB) {
+            winningTeam = 'A';
+          } else if (totalHelpsB > totalHelpsA) {
+            winningTeam = 'B';
+          } else {
+            winningTeam = 'Seri';
+          }
+        }
+        
+        setWinner(winningTeam);
+        setWinnerReason(`Semua soal telah terjawab! Kelompok ${winningTeam} berada di posisi tertinggi (${winnerPos}).`);
+        setShowWinnerPopup(true);
+        
+        if (gameTimerRef.current) clearInterval(gameTimerRef.current);
+        if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+      };
+
+      const endGameByPosition = (team) => {
+        setWinner(team);
+        setWinnerReason(`Kelompok ${team} berhasil mencapai kotak 100!`);
+        setShowWinnerPopup(true);
+        setGameState('finished');
       };
 
       const handleTimeout = () => {
@@ -249,15 +325,16 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
         }
         setGameState('playing');
         setGameTimer(0);
+        setShowWinnerPopup(false);
+        setWinner(null);
+        setWinnerReason('');
         pickQuestion();
       };
 
       const pickQuestion = () => {
         const availableQuestions = questions.filter(q => !q.used);
         if (availableQuestions.length === 0) {
-          // Reset semua soal jika sudah habis
-          setQuestions(prev => prev.map(q => ({ ...q, used: false })));
-          pickQuestion();
+          endGameByQuestions();
           return;
         }
         
@@ -363,9 +440,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
           const newPositions = { ...prev, [team]: newPos };
           
           if (newPos >= 100) {
-            setWinner(team);
-            setGameState('finished');
-            if (gameTimerRef.current) clearInterval(gameTimerRef.current);
+            endGameByPosition(team);
             return newPositions;
           }
           
@@ -446,14 +521,21 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
         setGameState('setup');
         setPositions({ A: 1, B: 1 });
         setHelps({
-          A: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 },
-          B: { throwQuestion: 3, clue: 2, shield: 2, changeQuestion: 2, doubleMove: 3 }
+          A: { throwQuestion: 2, clue: 1, shield: 1, changeQuestion: 1, doubleMove: 2 },
+          B: { throwQuestion: 2, clue: 1, shield: 1, changeQuestion: 1, doubleMove: 2 }
         });
         setCurrentTeam('A');
         setGameTimer(0);
         setWinner(null);
+        setShowWinnerPopup(false);
+        setWinnerReason('');
         setQuestions(prev => prev.map(q => ({ ...q, used: false })));
         setCurrentQuestion(null);
+      };
+
+      const closeWinnerPopup = () => {
+        setShowWinnerPopup(false);
+        setGameState('finished');
       };
 
       const renderBoard = () => {
@@ -499,6 +581,43 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
           }
         }
         return cells;
+      };
+
+      const WinnerPopup = () => {
+        if (!showWinnerPopup) return null;
+
+        return (
+          <div className="popup-overlay">
+            <div className="popup-content">
+              <div className="text-6xl mb-4">🏆</div>
+              <h2 className="text-3xl font-bold mb-4 text-yellow-600">
+                {winner === 'Seri' ? 'Permainan Seri!' : `Kelompok ${winner} Menang!`}
+              </h2>
+              <p className="text-lg text-gray-700 mb-2">
+                {winnerReason}
+              </p>
+              <p className="text-md text-gray-600 mb-6">
+                Waktu bermain: {formatTime(gameTimer)}
+              </p>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="text-center">
+                  <p className="font-bold text-blue-600">Kelompok A</p>
+                  <p className="text-2xl">Posisi: {positions.A}</p>
+                </div>
+                <div className="text-center">
+                  <p className="font-bold text-red-600">Kelompok B</p>
+                  <p className="text-2xl">Posisi: {positions.B}</p>
+                </div>
+              </div>
+              <button
+                onClick={closeWinnerPopup}
+                className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition text-lg font-bold w-full"
+              >
+                Tutup & Lihat Hasil
+              </button>
+            </div>
+          </div>
+        );
       };
 
       if (gameState === 'setup') {
@@ -551,8 +670,9 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                   <li>❓ Jawab soal dengan benar untuk maju, salah untuk mundur</li>
                   <li>🪜 Tangga hijau: naik ke atas (dengan soal bonus)</li>
                   <li>🐍 Ular merah: turun ke bawah (bisa diselamatkan dengan soal)</li>
-                  <li>🛡️ 5 jenis bantuan per kelompok</li>
+                  <li>🛡️ 5 jenis bantuan per kelompok (masing-masing 5x)</li>
                   <li>⏱️ Setiap soal memiliki batas waktu</li>
+                  <li>🏆 Game berakhir ketika ada yang mencapai 100 atau soal habis</li>
                 </ul>
                 
                 <button
@@ -569,36 +689,14 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
         );
       }
 
-      if (gameState === 'finished') {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 p-4 flex items-center justify-center">
-            <div className="bg-white rounded-xl shadow-2xl p-8 text-center max-w-2xl w-full">
-              <div className="text-6xl mb-4">🏆</div>
-              <h1 className="text-3xl md:text-5xl font-bold mb-4 text-yellow-600">
-                Kelompok {winner} Menang!
-              </h1>
-              <p className="text-xl md:text-2xl text-gray-700 mb-6">
-                Waktu: {formatTime(gameTimer)}
-              </p>
-              <button
-                onClick={resetGame}
-                className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition text-lg font-bold"
-              >
-                Main Lagi
-              </button>
-            </div>
-          </div>
-        );
-      }
-
-      const answeringTeam = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
-
       return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-2">
+          <WinnerPopup />
+          
           <div className="max-w-7xl mx-auto">
             <div className="bg-white rounded-xl shadow-lg p-3 mb-3 flex items-center justify-between">
               <div>
-                <h1 className="text-xl md:text-2xl font-bold text-purple-800">🎮 EduLadder Battle</h1>
+                <h1 className="text-xl md:text-2xl font-bold text-purple-800">🎮 Ular Tangga Pembelajaran</h1>
                 <p className="text-sm text-gray-600">Giliran: Kelompok {currentTeam}</p>
               </div>
               <div className="text-right">
@@ -639,13 +737,13 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
               <div className="space-y-3">
                 {!ladderBonusQuestion && !snakeSaveQuestion && currentQuestion && !showAnswer && (
                   <div className="bg-white rounded-xl shadow-lg p-3">
-                    <h3 className="font-bold text-md mb-2">🛠️ Bantuan Kelompok {answeringTeam}</h3>
+                    <h3 className="font-bold text-md mb-2">🛠️ Bantuan Kelompok {currentTeam}</h3>
                     <div className="space-y-1">
                       {['throwQuestion', 'clue', 'shield', 'changeQuestion', 'doubleMove'].map((helpType) => (
                         <button
                           key={helpType}
                           onClick={() => useHelp(helpType)}
-                          disabled={helps[answeringTeam][helpType] === 0 || 
+                          disabled={helps[currentTeam][helpType] === 0 || 
                                    (helpType === 'throwQuestion' && questionThrown) ||
                                    (helpType === 'clue' && showClue) ||
                                    (helpType === 'shield' && shieldActive) ||
@@ -659,7 +757,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                             {helpType === 'changeQuestion' && '🔄 Ganti Soal'}
                             {helpType === 'doubleMove' && '⚡ Double Move'}
                           </span>
-                          <span className="font-bold">{helps[answeringTeam][helpType]}</span>
+                          <span className="font-bold">{helps[currentTeam][helpType]}</span>
                         </button>
                       ))}
                     </div>
@@ -670,7 +768,7 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                   <div className="bg-white rounded-xl shadow-lg p-3">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-bold text-md">
-                        {questionThrown ? `❓ Soal untuk Kelompok ${answeringTeam}` : `❓ Soal Kelompok ${currentTeam}`}
+                        {questionThrown ? `❓ Soal untuk Kelompok ${currentTeam === 'A' ? 'B' : 'A'}` : `❓ Soal Kelompok ${currentTeam}`}
                       </h3>
                       <div className={`text-xl font-bold ${questionTimer <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'}`}>
                         {questionTimer}s
@@ -760,6 +858,19 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
                         12
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {gameState === 'finished' && !showWinnerPopup && (
+                  <div className="bg-white rounded-xl shadow-lg p-4 text-center">
+                    <h3 className="text-xl font-bold mb-2">Permainan Selesai</h3>
+                    <p className="mb-4">Terima kasih telah bermain!</p>
+                    <button
+                      onClick={resetGame}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+                    >
+                      Main Lagi
+                    </button>
                   </div>
                 )}
               </div>
