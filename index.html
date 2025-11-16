@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EduLadder Battle - By Ridwan Na'im</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+    .animate-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const { Play, Upload, Download, Timer, ChevronUp, ChevronDown } = lucide;
+
+    const SnakesLaddersGame = () => {
+      const [gameState, setGameState] = useState('setup');
+      const [questions, setQuestions] = useState([]);
+      const [currentQuestion, setCurrentQuestion] = useState(null);
+      const [currentTeam, setCurrentTeam] = useState('A');
+      const [positions, setPositions] = useState({ A: 1, B: 1 });
+      const [helps, setHelps] = useState({
+        A: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 },
+        B: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 }
+      });
+      const [selectedHelp, setSelectedHelp] = useState(null);
+      const [showClue, setShowClue] = useState(false);
+      const [shieldActive, setShieldActive] = useState(false);
+      const [doubleMoveActive, setDoubleMoveActive] = useState(false);
+      const [questionThrown, setQuestionThrown] = useState(false);
+      const [gameTimer, setGameTimer] = useState(0);
+      const [questionTimer, setQuestionTimer] = useState(0);
+      const [showAnswer, setShowAnswer] = useState(false);
+      const [ladderBonusQuestion, setLadderBonusQuestion] = useState(null);
+      const [snakeSaveQuestion, setSnakeSaveQuestion] = useState(null);
+      const [winner, setWinner] = useState(null);
+
+      const gameTimerRef = useRef(null);
+      const questionTimerRef = useRef(null);
+
+      const snakes = {
+        98: 28, 87: 24, 73: 51, 62: 19, 54: 34, 47: 26, 38: 15
+      };
+      
+      const ladders = {
+        4: 14, 9: 31, 21: 42, 28: 84, 51: 67, 71: 91, 80: 99
+      };
+
+      useEffect(() => {
+        if (gameState === 'playing') {
+          gameTimerRef.current = setInterval(() => {
+            setGameTimer(prev => prev + 1);
+          }, 1000);
+        }
+        return () => clearInterval(gameTimerRef.current);
+      }, [gameState]);
+
+      useEffect(() => {
+        if (currentQuestion && questionTimer > 0) {
+          questionTimerRef.current = setInterval(() => {
+            setQuestionTimer(prev => {
+              if (prev <= 1) {
+                handleTimeout();
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+        }
+        return () => clearInterval(questionTimerRef.current);
+      }, [currentQuestion, questionTimer]);
+
+      const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      const handleTimeout = () => {
+        alert(`Waktu habis! Kelompok ${currentTeam} mundur ${currentQuestion.penalty} langkah.`);
+        moveToken(currentTeam, -currentQuestion.penalty, true);
+      };
+
+      const downloadTemplate = () => {
+        const template = `Pertanyaan,Pilihan A,Pilihan B,Pilihan C,Pilihan D,Jawaban Benar (A/B/C/D),Clue,Reward (langkah maju),Penalty (langkah mundur),Durasi (detik)
+Berapa hasil dari 2 + 2?,2,3,4,5,C,Operasi penjumlahan dasar,5,3,15
+Apa ibu kota Indonesia?,Bandung,Jakarta,Surabaya,Medan,B,Kota terbesar di Indonesia,4,2,10
+Siapa presiden pertama Indonesia?,Soeharto,Soekarno,Habibie,Megawati,B,Proklamator kemerdekaan,6,3,20
+Berapa hasil dari 5 x 3?,10,15,20,25,B,Perkalian dasar,5,3,15
+Planet terdekat dengan matahari?,Venus,Mars,Merkurius,Bumi,C,Planet pertama dari matahari,4,2,12
+Berapa jumlah provinsi di Indonesia?,34,35,36,37,A,Jumlah provinsi saat ini,5,3,15
+Siapa penemu lampu?,Edison,Einstein,Newton,Tesla,A,Penemu Amerika,5,3,15
+1 + 1 = ?,1,2,3,4,B,Penjumlahan paling dasar,3,2,10
+Ibu kota Jawa Barat?,Bandung,Jakarta,Semarang,Surabaya,A,Kota kembang,4,2,10
+Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3,15`;
+        
+        const blob = new Blob([template], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'template_soal_ular_tangga.csv';
+        a.click();
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target.result;
+          const lines = text.split('\n').slice(1);
+          const parsedQuestions = lines
+            .filter(line => line.trim())
+            .map((line, idx) => {
+              const parts = line.split(',');
+              return {
+                id: idx + 1,
+                question: parts[0]?.trim() || '',
+                options: [
+                  parts[1]?.trim() || '',
+                  parts[2]?.trim() || '',
+                  parts[3]?.trim() || '',
+                  parts[4]?.trim() || ''
+                ],
+                correctAnswer: parts[5]?.trim().toUpperCase() || 'A',
+                clue: parts[6]?.trim() || '',
+                reward: parseInt(parts[7]) || 5,
+                penalty: parseInt(parts[8]) || 3,
+                duration: parseInt(parts[9]) || 15
+              };
+            });
+          
+          setQuestions(parsedQuestions);
+          alert(`${parsedQuestions.length} soal berhasil dimuat!`);
+        };
+        reader.readAsText(file);
+      };
+
+      const startGame = () => {
+        if (questions.length < 10) {
+          alert('Minimal 10 soal diperlukan untuk memulai game!');
+          return;
+        }
+        setGameState('playing');
+        pickQuestion();
+      };
+
+      const pickQuestion = () => {
+        const availableQuestions = questions.filter(q => !q.used);
+        if (availableQuestions.length === 0) {
+          setQuestions(questions.map(q => ({ ...q, used: false })));
+          pickQuestion();
+          return;
+        }
+        
+        const randomQ = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
+        setCurrentQuestion(randomQ);
+        setQuestionTimer(randomQ.duration);
+        setShowAnswer(false);
+        setShowClue(false);
+      };
+
+      const useHelp = (helpType) => {
+        const team = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
+        
+        if (helps[team][helpType] <= 0) {
+          alert('Bantuan ini sudah habis!');
+          return;
+        }
+
+        setHelps(prev => ({
+          ...prev,
+          [team]: {
+            ...prev[team],
+            [helpType]: prev[team][helpType] - 1
+          }
+        }));
+
+        switch(helpType) {
+          case 'throwQuestion':
+            setQuestionThrown(true);
+            alert(`Soal dilempar ke Kelompok ${currentTeam === 'A' ? 'B' : 'A'}!`);
+            break;
+          case 'clue':
+            setShowClue(true);
+            break;
+          case 'shield':
+            setShieldActive(true);
+            alert('Shield aktif! Tidak akan mundur atau turun ular pada giliran ini.');
+            break;
+          case 'changeQuestion':
+            pickQuestion();
+            alert('Soal diganti!');
+            break;
+          case 'doubleMove':
+            setDoubleMoveActive(true);
+            alert('Double Move aktif! Langkah akan dilipatgandakan jika benar.');
+            break;
+        }
+        
+        setSelectedHelp(helpType);
+      };
+
+      const handleAnswer = (selectedOption) => {
+        clearInterval(questionTimerRef.current);
+        const isCorrect = selectedOption === currentQuestion.correctAnswer;
+        const answeringTeam = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
+        
+        setShowAnswer(true);
+        
+        setTimeout(() => {
+          if (isCorrect) {
+            let steps = currentQuestion.reward;
+            if (doubleMoveActive && !questionThrown) {
+              steps *= 2;
+              alert(`Benar! Double Move aktif, maju ${steps} langkah!`);
+            } else {
+              alert(`Benar! Maju ${steps} langkah.`);
+            }
+            moveToken(answeringTeam, steps, false);
+          } else {
+            const penalty = shieldActive && !questionThrown ? 0 : currentQuestion.penalty;
+            if (penalty > 0) {
+              alert(`Salah! Mundur ${penalty} langkah.`);
+              moveToken(answeringTeam, -penalty, true);
+            } else if (shieldActive) {
+              alert('Salah! Tapi Shield melindungi, tidak mundur.');
+              nextTurn();
+            }
+          }
+          
+          setQuestions(prev => prev.map(q => 
+            q.id === currentQuestion.id ? { ...q, used: true } : q
+          ));
+        }, 2000);
+      };
+
+      const moveToken = (team, steps, isBackward) => {
+        setPositions(prev => {
+          let newPos = prev[team] + steps;
+          
+          if (newPos < 1) newPos = 1;
+          if (newPos > 100) newPos = 100;
+          
+          const newPositions = { ...prev, [team]: newPos };
+          
+          if (newPos >= 100) {
+            setWinner(team);
+            setGameState('finished');
+            clearInterval(gameTimerRef.current);
+            return newPositions;
+          }
+          
+          if (!isBackward && ladders[newPos]) {
+            setTimeout(() => {
+              setLadderBonusQuestion({
+                team,
+                from: newPos,
+                to: ladders[newPos]
+              });
+            }, 500);
+          }
+          else if (snakes[newPos]) {
+            if (shieldActive && team === (questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam)) {
+              alert('Shield melindungi dari ular!');
+              setShieldActive(false);
+              setTimeout(nextTurn, 1000);
+            } else {
+              setTimeout(() => {
+                setSnakeSaveQuestion({
+                  team,
+                  from: newPos,
+                  to: snakes[newPos]
+                });
+              }, 500);
+            }
+          } else {
+            setTimeout(nextTurn, 1000);
+          }
+          
+          return newPositions;
+        });
+      };
+
+      const handleLadderBonus = (isCorrect) => {
+        if (isCorrect) {
+          alert('Benar! Naik tangga!');
+          setPositions(prev => ({
+            ...prev,
+            [ladderBonusQuestion.team]: ladderBonusQuestion.to
+          }));
+        } else {
+          alert('Salah! Tetap di bawah tangga.');
+        }
+        setLadderBonusQuestion(null);
+        nextTurn();
+      };
+
+      const handleSnakeSave = (isCorrect) => {
+        if (isCorrect) {
+          alert('Benar! Selamat dari ular!');
+        } else {
+          alert('Salah! Turun ke ekor ular.');
+          setPositions(prev => ({
+            ...prev,
+            [snakeSaveQuestion.team]: snakeSaveQuestion.to
+          }));
+        }
+        setSnakeSaveQuestion(null);
+        nextTurn();
+      };
+
+      const nextTurn = () => {
+        setCurrentTeam(prev => prev === 'A' ? 'B' : 'A');
+        setCurrentQuestion(null);
+        setSelectedHelp(null);
+        setShieldActive(false);
+        setDoubleMoveActive(false);
+        setQuestionThrown(false);
+        setShowClue(false);
+        setTimeout(pickQuestion, 500);
+      };
+
+      const resetGame = () => {
+        setGameState('setup');
+        setPositions({ A: 1, B: 1 });
+        setHelps({
+          A: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 },
+          B: { throwQuestion: 5, clue: 5, shield: 5, changeQuestion: 5, doubleMove: 5 }
+        });
+        setCurrentTeam('A');
+        setGameTimer(0);
+        setWinner(null);
+        setQuestions(questions.map(q => ({ ...q, used: false })));
+      };
+
+      const renderBoard = () => {
+        const cells = [];
+        for (let row = 9; row >= 0; row--) {
+          for (let col = 0; col < 10; col++) {
+            const num = row % 2 === 1 
+              ? row * 10 + (10 - col)
+              : row * 10 + col + 1;
+            
+            const isSnakeHead = snakes[num];
+            const isLadderBottom = ladders[num];
+            const hasTeamA = positions.A === num;
+            const hasTeamB = positions.B === num;
+            
+            cells.push(
+              <div
+                key={num}
+                className={`
+                  relative w-12 h-12 border border-gray-300 flex items-center justify-center text-xs font-bold
+                  ${isSnakeHead ? 'bg-red-200' : isLadderBottom ? 'bg-green-200' : 'bg-white'}
+                `}
+              >
+                <span className="absolute top-0.5 left-1 text-[10px] text-gray-500">{num}</span>
+                
+                {isSnakeHead && <ChevronDown className="absolute text-red-600" size={16} />}
+                {isLadderBottom && <ChevronUp className="absolute text-green-600" size={16} />}
+                
+                <div className="flex gap-0.5 mt-2">
+                  {hasTeamA && (
+                    <div className="w-5 h-5 rounded-full bg-blue-500 border-2 border-blue-700 text-white text-[10px] flex items-center justify-center font-bold">
+                      A
+                    </div>
+                  )}
+                  {hasTeamB && (
+                    <div className="w-5 h-5 rounded-full bg-red-500 border-2 border-red-700 text-white text-[10px] flex items-center justify-center font-bold">
+                      B
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+        }
+        return cells;
+      };
+
+      if (gameState === 'setup') {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-8">
+            <div className="max-w-4xl mx-auto">
+              <h1 className="text-4xl font-bold text-center mb-2 text-purple-800">
+                🎮 EduLadder Battle by Ridwan Na'im
+              </h1>
+              <p className="text-center text-gray-600 mb-8">Game Edukasi untuk 2 Kelompok</p>
+              
+              <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">📝 Import Soal</h2>
+                
+                <div className="space-y-4">
+                  <button
+                    onClick={downloadTemplate}
+                    className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition"
+                  >
+                    <Download size={20} />
+                    Download Template Excel (CSV)
+                  </button>
+                  
+                  <label className="w-full flex items-center justify-center gap-2 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition cursor-pointer">
+                    <Upload size={20} />
+                    Upload File Soal (CSV)
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  
+                  {questions.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-green-800 font-semibold">
+                        ✅ {questions.length} soal telah dimuat
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-8">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">📋 Aturan Game</h2>
+                <ul className="space-y-2 text-gray-700">
+                  <li>🎯 Tujuan: Mencapai kotak 100 terlebih dahulu</li>
+                  <li>❓ Jawab soal dengan benar untuk maju, salah untuk mundur</li>
+                  <li>🪜 Tangga hijau: naik ke atas (dengan soal bonus)</li>
+                  <li>🐍 Ular merah: turun ke bawah (bisa diselamatkan dengan soal)</li>
+                  <li>🛡️ 5 jenis bantuan per kelompok (masing-masing 5x)</li>
+                  <li>⏱️ Setiap soal memiliki batas waktu</li>
+                </ul>
+                
+                <button
+                  onClick={startGame}
+                  disabled={questions.length < 10}
+                  className="w-full mt-6 flex items-center justify-center gap-2 bg-purple-600 text-white px-8 py-4 rounded-lg hover:bg-purple-700 transition disabled:bg-gray-300 disabled:cursor-not-allowed text-lg font-bold"
+                >
+                  <Play size={24} />
+                  Mulai Permainan
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (gameState === 'finished') {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 p-8 flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-2xl p-12 text-center max-w-2xl">
+              <div className="text-6xl mb-4">🏆</div>
+              <h1 className="text-5xl font-bold mb-4 text-yellow-600">
+                Kelompok {winner} Menang!
+              </h1>
+              <p className="text-2xl text-gray-700 mb-6">
+                Waktu: {formatTime(gameTimer)}
+              </p>
+              <button
+                onClick={resetGame}
+                className="bg-purple-600 text-white px-8 py-4 rounded-lg hover:bg-purple-700 transition text-lg font-bold"
+              >
+                Main Lagi
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      const answeringTeam = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-white rounded-xl shadow-lg p-4 mb-4 flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-purple-800">🎮 Ular Tangga Pembelajaran</h1>
+                <p className="text-sm text-gray-600">Giliran: Kelompok {currentTeam}</p>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2 text-lg font-mono">
+                  <Timer size={20} />
+                  <span className="font-bold">{formatTime(gameTimer)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-xl shadow-lg p-4">
+                  <div className="grid grid-cols-10 gap-0.5 border-2 border-gray-400">
+                    {renderBoard()}
+                  </div>
+                  
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div className={`p-4 rounded-lg ${currentTeam === 'A' ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-500"></div>
+                        <span className="font-bold">Kelompok A</span>
+                      </div>
+                      <p className="text-2xl font-bold">Posisi: {positions.A}</p>
+                    </div>
+                    
+                    <div className={`p-4 rounded-lg ${currentTeam === 'B' ? 'bg-red-100 border-2 border-red-500' : 'bg-gray-50'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-full bg-red-500"></div>
+                        <span className="font-bold">Kelompok B</span>
+                      </div>
+                      <p className="text-2xl font-bold">Posisi: {positions.B}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {!ladderBonusQuestion && !snakeSaveQuestion && currentQuestion && !showAnswer && (
+                  <div className="bg-white rounded-xl shadow-lg p-4">
+                    <h3 className="font-bold text-lg mb-3">🛠️ Bantuan Kelompok {answeringTeam}</h3>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => useHelp('throwQuestion')}
+                        disabled={helps[answeringTeam].throwQuestion === 0 || questionThrown}
+                        className="w-full flex items-center justify-between p-2 bg-orange-100 rounded hover:bg-orange-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        <span>🎯 Lempar Soal</span>
+                        <span className="font-bold">{helps[answeringTeam].throwQuestion}</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => useHelp('clue')}
+                        disabled={helps[answeringTeam].clue === 0 || showClue}
+                        className="w-full flex items-center justify-between p-2 bg-yellow-100 rounded hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        <span>💡 Clue</span>
+                        <span className="font-bold">{helps[answeringTeam].clue}</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => useHelp('shield')}
+                        disabled={helps[answeringTeam].shield === 0 || shieldActive}
+                        className="w-full flex items-center justify-between p-2 bg-blue-100 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        <span>🛡️ Shield</span>
+                        <span className="font-bold">{helps[answeringTeam].shield}</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => useHelp('changeQuestion')}
+                        disabled={helps[answeringTeam].changeQuestion === 0}
+                        className="w-full flex items-center justify-between p-2 bg-purple-100 rounded hover:bg-purple-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        <span>🔄 Ganti Soal</span>
+                        <span className="font-bold">{helps[answeringTeam].changeQuestion}</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => useHelp('doubleMove')}
+                        disabled={helps[answeringTeam].doubleMove === 0 || doubleMoveActive}
+                        className="w-full flex items-center justify-between p-2 bg-green-100 rounded hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        <span>⚡ Double Move</span>
+                        <span className="font-bold">{helps[answeringTeam].doubleMove}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {currentQuestion && !ladderBonusQuestion && !snakeSaveQuestion && (
+                  <div className="bg-white rounded-xl shadow-lg p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-lg">
+                        {questionThrown ? `❓ Soal untuk Kelompok ${answeringTeam}` : `❓ Soal Kelompok ${currentTeam}`}
+                      </h3>
+                      <div className={`text-2xl font-bold ${questionTimer <= 5 ? 'text-red-600 animate-pulse' : 'text-blue-600'}`}>
+                        {questionTimer}s
+                      </div>
+                    </div>
+                    
+                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                      <p className="font-semibold">{currentQuestion.question}</p>
+                      {showClue && (
+                        <p className="text-sm text-purple-600 mt-2">💡 Clue: {currentQuestion.clue}</p>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {currentQuestion.options.map((option, idx) => {
+                        const optionLetter = String.fromCharCode(65 + idx);
+                        const isCorrect = optionLetter === currentQuestion.correctAnswer;
+                        const buttonClass = showAnswer
+                          ? isCorrect
+                            ? 'bg-green-200 border-green-500'
+                            : 'bg-red-100 border-red-300'
+                          : 'bg-gray-50 hover:bg-blue-50 border-gray-300';
+                        
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => !showAnswer && handleAnswer(optionLetter)}
+                            disabled={showAnswer}
+                            className={`w-full p-3 rounded-lg border-2 text-left transition ${buttonClass} disabled:cursor-not-allowed`}
+                          >
+                            <span className="font-bold">{optionLetter}.</span> {option}
+                            {showAnswer && isCorrect && ' ✓'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    <div className="mt-3 flex justify-between text-sm text-gray-600">
+                      <span>✅ Benar: +{currentQuestion.reward} langkah</span>
+                      <span>❌ Salah: -{currentQuestion.penalty} langkah</span>
+                    </div>
+                  </div>
+                )}
+
+                {ladderBonusQuestion && (
+                  <div className="bg-white rounded-xl shadow-lg p-4 border-4 border-green-400">
+                    <h3 className="font-bold text-lg mb-3 text-green-700">
+                      🪜 Soal Tangga Bonus!
+                    </h3>
+                    <p className="mb-4">Kotak {ladderBonusQuestion.from} → {ladderBonusQuestion.to}</p>
+                    <p className="font-semibold mb-4">10 + 5 = ?</p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => handleLadderBonus(true)}
+                        className="w-full p-3 bg-green-100 hover:bg-green-200 rounded-lg"
+                      >
+                        15 ✓
+                      </button>
+                      <button
+                        onClick={() => handleLadderBonus(false)}
+                        className="w-full p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                      >
+                        20
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {snakeSaveQuestion && (
+                  <div className="bg-white rounded-xl shadow-lg p-4 border-4 border-red-400">
+                    <h3 className="font-bold text-lg mb-3 text-red-700">
+                      🐍 Soal Penyelamat Ular!
+                    </h3>
+                    <p className="mb-4">Kotak {snakeSaveQuestion.from} → {snakeSaveQuestion.to}</p>
+                    <p className="font-semibold mb-4">5 × 2 = ?</p>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => handleSnakeSave(true)}
+                        className="w-full p-3 bg-green-100 hover:bg-green-200 rounded-lg"
+                      >
+                        10 ✓
+                      </button>
+                      <button
+                        onClick={() => handleSnakeSave(false)}
+                        className="w-full p-3 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                      >
+                        12
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<SnakesLaddersGame />);
+  </script>
+</body>
+</html>
