@@ -221,17 +221,17 @@
       };
 
       const downloadTemplate = () => {
-        const template = `Pertanyaan,Pilihan A,Pilihan B,Pilihan C,Pilihan D,Jawaban Benar (A/B/C/D),Clue,Reward (langkah maju),Penalty (langkah mundur),Durasi (detik)
-Berapa hasil dari 2 + 2?,2,3,4,5,C,Operasi penjumlahan dasar,5,3,15
-Apa ibu kota Indonesia?,Bandung,Jakarta,Surabaya,Medan,B,Kota terbesar di Indonesia,4,2,10
-Siapa presiden pertama Indonesia?,Soeharto,Soekarno,Habibie,Megawati,B,Proklamator kemerdekaan,6,3,20
-Berapa hasil dari 5 x 3?,10,15,20,25,B,Perkalian dasar,5,3,15
-Planet terdekat dengan matahari?,Venus,Mars,Merkurius,Bumi,C,Planet pertama dari matahari,4,2,12
-Berapa jumlah provinsi di Indonesia?,34,35,36,37,A,Jumlah provinsi saat ini,5,3,15
-Siapa penemu lampu?,Edison,Einstein,Newton,Tesla,A,Penemu Amerika,5,3,15
-1 + 1 = ?,1,2,3,4,B,Penjumlahan paling dasar,3,2,10
-Ibu kota Jawa Barat?,Bandung,Jakarta,Semarang,Surabaya,A,Kota kembang,4,2,10
-Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3,15`;
+        const template = `Pertanyaan;Pilihan A;Pilihan B;Pilihan C;Pilihan D;Jawaban Benar (A/B/C/D);Clue;Reward (langkah maju);Penalty (langkah mundur);Durasi (detik)
+Berapa hasil dari 2 + 2?;2;3;4;5;C;Operasi penjumlahan dasar;5;3;15
+Apa ibu kota Indonesia?;Bandung;Jakarta;Surabaya;Medan;B;Kota terbesar di Indonesia;4;2;10
+Siapa presiden pertama Indonesia?;Soeharto;Soekarno;Habibie;Megawati;B;Proklamator kemerdekaan;6;3;20
+Berapa hasil dari 5 x 3?;10;15;20;25;B;Perkalian dasar;5;3;15
+Planet terdekat dengan matahari?;Venus;Mars;Merkurius;Bumi;C;Planet pertama dari matahari;4;2;12
+Berapa jumlah provinsi di Indonesia?;34;35;36;37;A;Jumlah provinsi saat ini;5;3;15
+Siapa penemu lampu?;Edison;Einstein;Newton;Tesla;A;Penemu Amerika;5;3;15
+1 + 1 = ?;1;2;3;4;B;Penjumlahan paling dasar;3;2;10
+Ibu kota Jawa Barat?;Bandung;Jakarta;Semarang;Surabaya;A;Kota kembang;4;2;10
+Hewan tercepat di darat?;Singa;Cheetah;Harimau;Kuda;B;Kucing besar berbintik;5;3;15`;
         
         try {
           const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
@@ -263,12 +263,12 @@ Hewan tercepat di darat?,Singa,Cheetah,Harimau,Kuda,B,Kucing besar berbintik,5,3
             const parsedQuestions = lines
               .filter(line => line.trim())
               .map((line, idx) => {
-                // Handle CSV dengan quote dan komma di dalam value
-                const parts = line.split(',').reduce((acc, part) => {
+                // Handle CSV dengan quote dan semicolon di dalam value
+                const parts = line.split(';').reduce((acc, part) => {
                   if (part.startsWith('"') && !part.endsWith('"')) {
                     acc.inProgress = part;
                   } else if (acc.inProgress) {
-                    acc.inProgress += ',' + part;
+                    acc.inProgress += ';' + part;
                     if (part.endsWith('"')) {
                       acc.parts.push(acc.inProgress.replace(/"/g, ''));
                       acc.inProgress = null;
