@@ -91,8 +91,6 @@
     const SnakesLaddersGame = () => {
       const [gameState, setGameState] = useState('setup');
       const [questions, setQuestions] = useState([]);
-      const [ladderQuestions, setLadderQuestions] = useState([]);
-      const [snakeQuestions, setSnakeQuestions] = useState([]);
       const [currentQuestion, setCurrentQuestion] = useState(null);
       const [currentTeam, setCurrentTeam] = useState('A');
       const [positions, setPositions] = useState({ A: 1, B: 1 });
@@ -108,18 +106,16 @@
       const [gameTimer, setGameTimer] = useState(0);
       const [questionTimer, setQuestionTimer] = useState(0);
       const [showAnswer, setShowAnswer] = useState(false);
-      const [ladderBonusQuestion, setLadderBonusQuestion] = useState(null);
-      const [snakeSaveQuestion, setSnakeSaveQuestion] = useState(null);
       const [winner, setWinner] = useState(null);
       const [loading, setLoading] = useState(false);
       const [showWinnerPopup, setShowWinnerPopup] = useState(false);
       const [winnerReason, setWinnerReason] = useState('');
       const [uploadedFiles, setUploadedFiles] = useState({
-        main: false,
-        ladder: false,
-        snake: false
+        main: false
       });
-      const [specialQuestionAnswered, setSpecialQuestionAnswered] = useState(false);
+      const [showSnakeLadderModal, setShowSnakeLadderModal] = useState(false);
+      const [snakeLadderInfo, setSnakeLadderInfo] = useState(null);
+      const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
       const gameTimerRef = useRef(null);
       const questionTimerRef = useRef(null);
@@ -135,21 +131,17 @@
       // Load data dari sessionStorage saat komponen mount
       useEffect(() => {
         const savedQuestions = sessionStorage.getItem('eduladder_questions');
-        const savedLadderQuestions = sessionStorage.getItem('eduladder_ladder_questions');
-        const savedSnakeQuestions = sessionStorage.getItem('eduladder_snake_questions');
         const savedUploadedFiles = sessionStorage.getItem('eduladder_uploaded_files');
+        const savedCurrentIndex = sessionStorage.getItem('eduladder_current_index');
 
         if (savedQuestions) {
           setQuestions(JSON.parse(savedQuestions));
         }
-        if (savedLadderQuestions) {
-          setLadderQuestions(JSON.parse(savedLadderQuestions));
-        }
-        if (savedSnakeQuestions) {
-          setSnakeQuestions(JSON.parse(savedSnakeQuestions));
-        }
         if (savedUploadedFiles) {
           setUploadedFiles(JSON.parse(savedUploadedFiles));
+        }
+        if (savedCurrentIndex) {
+          setCurrentQuestionIndex(parseInt(savedCurrentIndex));
         }
       }, []);
 
@@ -159,16 +151,12 @@
       }, [questions]);
 
       useEffect(() => {
-        sessionStorage.setItem('eduladder_ladder_questions', JSON.stringify(ladderQuestions));
-      }, [ladderQuestions]);
-
-      useEffect(() => {
-        sessionStorage.setItem('eduladder_snake_questions', JSON.stringify(snakeQuestions));
-      }, [snakeQuestions]);
-
-      useEffect(() => {
         sessionStorage.setItem('eduladder_uploaded_files', JSON.stringify(uploadedFiles));
       }, [uploadedFiles]);
+
+      useEffect(() => {
+        sessionStorage.setItem('eduladder_current_index', currentQuestionIndex.toString());
+      }, [currentQuestionIndex]);
 
       // Cleanup timers
       useEffect(() => {
@@ -229,6 +217,10 @@
       };
 
       const endGameByQuestions = () => {
+        // Hentikan timer terlebih dahulu
+        if (gameTimerRef.current) clearInterval(gameTimerRef.current);
+        if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+        
         // Tentukan pemenang berdasarkan posisi tertinggi
         let winningTeam = null;
         let winnerPos = 0;
@@ -256,9 +248,7 @@
         setWinner(winningTeam);
         setWinnerReason(`Semua soal telah terjawab! Kelompok ${winningTeam} berada di posisi tertinggi (${winnerPos}).`);
         setShowWinnerPopup(true);
-        
-        if (gameTimerRef.current) clearInterval(gameTimerRef.current);
-        if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+        setGameState('finished');
       };
 
       const endGameByPosition = (team) => {
@@ -291,41 +281,6 @@ Siapa penemu lampu?;Edison;Einstein;Newton;Tesla;A;Penemu Amerika;5;3;15
 Ibu kota Jawa Barat?;Bandung;Jakarta;Semarang;Surabaya;A;Kota kembang;4;2;10
 Hewan tercepat di darat?;Singa;Cheetah;Harimau;Kuda;B;Kucing besar berbintik;5;3;15`;
           filename = 'template_soal_utama.csv';
-        } else if (type === 'ladder') {
-          template = `Pertanyaan;Pilihan A;Pilihan B;Pilihan C;Pilihan D;Jawaban Benar (A/B/C/D);Clue
-Berapa 8 + 7?;14;15;16;17;B;Penjumlahan dua angka
-10 x 2 = ?;18;19;20;21;C;Perkalian dengan 10
-12 + 8 = ?;19;20;21;22;B;Penjumlahan sederhana
-25 - 9 = ?;15;16;17;18;B;Pengurangan sederhana
-6 x 4 = ?;22;23;24;25;C;Perkalian dasar
-18 + 7 = ?;24;25;26;27;B;Penjumlahan dua angka
-30 - 12 = ?;17;18;19;20;B;Pengurangan
-9 x 3 = ?;26;27;28;29;B;Perkalian
-15 + 9 = ?;23;24;25;26;B;Penjumlahan
-40 ÷ 5 = ?;7;8;9;10;B;Pembagian dasar
-11 x 3 = ?;32;33;34;35;B;Perkalian
-27 - 8 = ?;18;19;20;21;B;Pengurangan
-7 x 6 = ?;40;41;42;43;C;Perkalian
-14 + 11 = ?;24;25;26;27;B;Penjumlahan`;
-          filename = 'template_soal_tangga.csv';
-        } else if (type === 'snake') {
-          template = `Pertanyaan;Pilihan A;Pilihan B;Pilihan C;Pilihan D;Jawaban Benar (A/B/C/D);Clue
-Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
-13 x 2 = ?;25;26;27;28;B;Perkalian dengan 2
-20 - 7 = ?;12;13;14;15;B;Pengurangan
-8 x 5 = ?;35;40;45;50;B;Perkalian dasar
-17 + 8 = ?;24;25;26;27;B;Penjumlahan
-35 ÷ 5 = ?;6;7;8;9;B;Pembagian
-12 x 3 = ?;34;35;36;37;C;Perkalian
-25 - 9 = ?;15;16;17;18;B;Pengurangan
-11 + 14 = ?;24;25;26;27;B;Penjumlahan
-6 x 7 = ?;40;41;42;43;C;Perkalian
-30 - 13 = ?;16;17;18;19;B;Pengurangan
-9 x 4 = ?;35;36;37;38;B;Perkalian
-18 + 12 = ?;29;30;31;32;B;Penjumlahan
-42 ÷ 6 = ?;6;7;8;9;B;Pembagian
-15 x 2 = ?;28;29;30;31;C;Perkalian`;
-          filename = 'template_soal_ular.csv';
         }
         
         try {
@@ -407,15 +362,8 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
             if (type === 'main') {
               setQuestions(parsedQuestions);
               setUploadedFiles(prev => ({ ...prev, main: true }));
+              setCurrentQuestionIndex(0);
               alert(`${parsedQuestions.length} soal utama berhasil dimuat!`);
-            } else if (type === 'ladder') {
-              setLadderQuestions(parsedQuestions);
-              setUploadedFiles(prev => ({ ...prev, ladder: true }));
-              alert(`${parsedQuestions.length} soal tangga berhasil dimuat!`);
-            } else if (type === 'snake') {
-              setSnakeQuestions(parsedQuestions);
-              setUploadedFiles(prev => ({ ...prev, snake: true }));
-              alert(`${parsedQuestions.length} soal ular berhasil dimuat!`);
             }
           } catch (error) {
             console.error('Error parsing CSV:', error);
@@ -445,53 +393,38 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
         setShowWinnerPopup(false);
         setWinner(null);
         setWinnerReason('');
-        setSpecialQuestionAnswered(false);
+        setCurrentQuestionIndex(0);
         pickQuestion();
       };
 
       const pickQuestion = () => {
-        const availableQuestions = questions.filter(q => !q.used);
-        if (availableQuestions.length === 0) {
+        // Ambil soal secara berurutan
+        if (currentQuestionIndex >= questions.length) {
+          // Jika sudah mencapai akhir, reset ke awal
+          setCurrentQuestionIndex(0);
+        }
+        
+        // Cek apakah ada soal yang tersedia
+        if (questions.length === 0) {
           endGameByQuestions();
           return;
         }
         
-        const randomQ = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-        setCurrentQuestion({ ...randomQ });
-        setQuestionTimer(randomQ.duration);
+        const nextQuestion = questions[currentQuestionIndex];
+        
+        // Pastikan nextQuestion ada sebelum mengatur state
+        if (!nextQuestion) {
+          endGameByQuestions();
+          return;
+        }
+        
+        setCurrentQuestion({ ...nextQuestion });
+        setQuestionTimer(nextQuestion.duration);
         setShowAnswer(false);
         setShowClue(false);
-        setSpecialQuestionAnswered(false);
-      };
-
-      const pickLadderQuestion = () => {
-        const availableQuestions = ladderQuestions.filter(q => !q.used);
-        if (availableQuestions.length === 0) {
-          // Reset jika semua soal sudah digunakan
-          setLadderQuestions(prev => prev.map(q => ({ ...q, used: false })));
-          return pickLadderQuestion();
-        }
         
-        const randomQ = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-        setLadderQuestions(prev => prev.map(q => 
-          q.id === randomQ.id ? { ...q, used: true } : q
-        ));
-        return randomQ;
-      };
-
-      const pickSnakeQuestion = () => {
-        const availableQuestions = snakeQuestions.filter(q => !q.used);
-        if (availableQuestions.length === 0) {
-          // Reset jika semua soal sudah digunakan
-          setSnakeQuestions(prev => prev.map(q => ({ ...q, used: false })));
-          return pickSnakeQuestion();
-        }
-        
-        const randomQ = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-        setSnakeQuestions(prev => prev.map(q => 
-          q.id === randomQ.id ? { ...q, used: true } : q
-        ));
-        return randomQ;
+        // Update index untuk soal berikutnya
+        setCurrentQuestionIndex(prev => prev + 1);
       };
 
       const useHelp = (helpType) => {
@@ -537,81 +470,44 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
         setSelectedHelp(helpType);
       };
 
-      const handleAnswer = (selectedOption, question = null, isSpecialQuestion = false) => {
-        const targetQuestion = question || currentQuestion;
-        if (!targetQuestion) return;
+      const handleAnswer = (selectedOption) => {
+        if (!currentQuestion || showAnswer) return;
         
-        if (isSpecialQuestion) {
-          // Untuk soal khusus (tangga/ular), gunakan state terpisah
-          setSpecialQuestionAnswered(true);
-        } else {
-          // Untuk soal utama
-          if (showAnswer) return;
-          setShowAnswer(true);
-          if (questionTimerRef.current) {
-            clearInterval(questionTimerRef.current);
-          }
+        setShowAnswer(true);
+        if (questionTimerRef.current) {
+          clearInterval(questionTimerRef.current);
         }
         
-        const isCorrect = selectedOption === targetQuestion.correctAnswer;
+        const isCorrect = selectedOption === currentQuestion.correctAnswer;
         const answeringTeam = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
         
         setTimeout(() => {
-          if (isSpecialQuestion) {
-            if (isCorrect) {
-              alert('Benar!');
-              if (ladderBonusQuestion) {
-                setPositions(prev => ({
-                  ...prev,
-                  [ladderBonusQuestion.team]: ladderBonusQuestion.to
-                }));
-                setLadderBonusQuestion(null);
-              } else if (snakeSaveQuestion) {
-                // Tetap di posisi saat ini (selamat dari ular)
-                setSnakeSaveQuestion(null);
-              }
+          if (isCorrect) {
+            let steps = currentQuestion.reward;
+            if (doubleMoveActive && !questionThrown) {
+              steps *= 2;
+              alert(`Benar! Double Move aktif, maju ${steps} langkah!`);
+              setDoubleMoveActive(false);
             } else {
-              alert('Salah!');
-              if (snakeSaveQuestion) {
-                setPositions(prev => ({
-                  ...prev,
-                  [snakeSaveQuestion.team]: snakeSaveQuestion.to
-                }));
-                setSnakeSaveQuestion(null);
-              } else {
-                setLadderBonusQuestion(null);
-              }
+              alert(`Benar! Maju ${steps} langkah.`);
             }
-            setSpecialQuestionAnswered(false);
-            nextTurn();
+            moveToken(answeringTeam, steps, false);
           } else {
-            if (isCorrect) {
-              let steps = targetQuestion.reward;
-              if (doubleMoveActive && !questionThrown) {
-                steps *= 2;
-                alert(`Benar! Double Move aktif, maju ${steps} langkah!`);
-                setDoubleMoveActive(false);
-              } else {
-                alert(`Benar! Maju ${steps} langkah.`);
-              }
-              moveToken(answeringTeam, steps, false);
-            } else {
-              const penalty = shieldActive && !questionThrown ? 0 : targetQuestion.penalty;
-              if (penalty > 0) {
-                alert(`Salah! Mundur ${penalty} langkah.`);
-                moveToken(answeringTeam, -penalty, true);
-              } else if (shieldActive) {
-                alert('Salah! Tapi Shield melindungi, tidak mundur.');
-                setShieldActive(false);
-                nextTurn();
-              }
+            const penalty = shieldActive && !questionThrown ? 0 : currentQuestion.penalty;
+            if (penalty > 0) {
+              alert(`Salah! Mundur ${penalty} langkah.`);
+              moveToken(answeringTeam, -penalty, true);
+            } else if (shieldActive) {
+              alert('Salah! Tapi Shield melindungi, tidak mundur.');
+              setShieldActive(false);
+              nextTurn();
             }
-            
-            // Tandai soal sebagai digunakan
-            setQuestions(prev => prev.map(q => 
-              q.id === targetQuestion.id ? { ...q, used: true } : q
-            ));
           }
+          
+          // Tandai soal sebagai digunakan
+          setQuestions(prev => prev.map(q => 
+            q.id === currentQuestion.id ? { ...q, used: true } : q
+          ));
         }, 2000);
       };
 
@@ -629,15 +525,17 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
             return newPositions;
           }
           
+          // Cek apakah mendarat di tangga atau ular
           if (!isBackward && ladders[newPos]) {
+            // Tampilkan modal untuk tangga
             setTimeout(() => {
-              const ladderQuestion = pickLadderQuestion();
-              setLadderBonusQuestion({
-                team,
+              setSnakeLadderInfo({
+                type: 'ladder',
+                team: team,
                 from: newPos,
-                to: ladders[newPos],
-                question: ladderQuestion
+                to: ladders[newPos]
               });
+              setShowSnakeLadderModal(true);
             }, 500);
           }
           else if (snakes[newPos]) {
@@ -646,14 +544,15 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
               setShieldActive(false);
               setTimeout(nextTurn, 1000);
             } else {
+              // Tampilkan modal untuk ular
               setTimeout(() => {
-                const snakeQuestion = pickSnakeQuestion();
-                setSnakeSaveQuestion({
-                  team,
+                setSnakeLadderInfo({
+                  type: 'snake',
+                  team: team,
                   from: newPos,
-                  to: snakes[newPos],
-                  question: snakeQuestion
+                  to: snakes[newPos]
                 });
+                setShowSnakeLadderModal(true);
               }, 500);
             }
           } else {
@@ -664,14 +563,37 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
         });
       };
 
-      const handleLadderBonus = (selectedOption) => {
-        if (specialQuestionAnswered) return;
-        handleAnswer(selectedOption, ladderBonusQuestion.question, true);
-      };
-
-      const handleSnakeSave = (selectedOption) => {
-        if (specialQuestionAnswered) return;
-        handleAnswer(selectedOption, snakeSaveQuestion.question, true);
+      const handleSnakeLadderResult = (isCorrect) => {
+        if (snakeLadderInfo) {
+          if (isCorrect) {
+            alert('Benar!');
+            if (snakeLadderInfo.type === 'ladder') {
+              // Naik tangga
+              setPositions(prev => ({
+                ...prev,
+                [snakeLadderInfo.team]: snakeLadderInfo.to
+              }));
+            } else {
+              // Tetap di posisi saat ini (selamat dari ular)
+              // Tidak perlu mengubah posisi
+            }
+          } else {
+            alert('Salah!');
+            if (snakeLadderInfo.type === 'snake') {
+              // Turun ular
+              setPositions(prev => ({
+                ...prev,
+                [snakeLadderInfo.team]: snakeLadderInfo.to
+              }));
+            } else {
+              // Tidak naik tangga
+              // Tidak perlu mengubah posisi
+            }
+          }
+          setShowSnakeLadderModal(false);
+          setSnakeLadderInfo(null);
+          nextTurn();
+        }
       };
 
       const nextTurn = () => {
@@ -683,7 +605,6 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
         setQuestionThrown(false);
         setShowClue(false);
         setShowAnswer(false);
-        setSpecialQuestionAnswered(false);
         setTimeout(pickQuestion, 500);
       };
 
@@ -703,11 +624,9 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
         setShowWinnerPopup(false);
         setWinnerReason('');
         setQuestions(prev => prev.map(q => ({ ...q, used: false })));
-        setLadderQuestions(prev => prev.map(q => ({ ...q, used: false })));
-        setSnakeQuestions(prev => prev.map(q => ({ ...q, used: false })));
         setCurrentQuestion(null);
         setShowAnswer(false);
-        setSpecialQuestionAnswered(false);
+        setCurrentQuestionIndex(0);
       };
 
       const closeWinnerPopup = () => {
@@ -797,12 +716,50 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
         );
       };
 
+      const SnakeLadderModal = () => {
+        if (!showSnakeLadderModal || !snakeLadderInfo) return null;
+
+        return (
+          <div className="popup-overlay">
+            <div className="popup-content">
+              <div className="text-4xl mb-4">
+                {snakeLadderInfo.type === 'ladder' ? '🪜' : '🐍'}
+              </div>
+              <h2 className="text-2xl font-bold mb-4">
+                {snakeLadderInfo.type === 'ladder' ? 'Tangga Bonus!' : 'Soal Penyelamat Ular!'}
+              </h2>
+              <p className="text-lg mb-2">
+                Kelompok {snakeLadderInfo.team} berada di kotak {snakeLadderInfo.from}
+              </p>
+              <p className="text-lg mb-4">
+                {snakeLadderInfo.type === 'ladder' 
+                  ? `Jika jawaban benar, naik ke kotak ${snakeLadderInfo.to}!`
+                  : `Jika jawaban salah, turun ke kotak ${snakeLadderInfo.to}!`}
+              </p>
+              <div className="grid grid-cols-2 gap-4 mt-6">
+                <button
+                  onClick={() => handleSnakeLadderResult(true)}
+                  className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 transition font-bold"
+                >
+                  Jawaban Benar
+                </button>
+                <button
+                  onClick={() => handleSnakeLadderResult(false)}
+                  className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 transition font-bold"
+                >
+                  Jawaban Salah
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
       const clearAllData = () => {
         sessionStorage.clear();
         setQuestions([]);
-        setLadderQuestions([]);
-        setSnakeQuestions([]);
-        setUploadedFiles({ main: false, ladder: false, snake: false });
+        setUploadedFiles({ main: false });
+        setCurrentQuestionIndex(0);
         alert('Semua data telah direset!');
       };
 
@@ -853,74 +810,6 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
                     </div>
                   </div>
 
-                  {/* Soal Tangga */}
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                    <h3 className="font-bold text-lg mb-3 text-green-600">🪜 Soal Tangga Bonus</h3>
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => downloadTemplate('ladder')}
-                        className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition"
-                      >
-                        <DownloadIcon />
-                        Download Template Soal Tangga
-                      </button>
-                      
-                      <label className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition cursor-pointer">
-                        <UploadIcon />
-                        {loading ? 'Memuat...' : 'Upload Soal Tangga (CSV)'}
-                        <input
-                          type="file"
-                          accept=".csv"
-                          onChange={(e) => handleFileUpload(e, 'ladder')}
-                          className="hidden"
-                          disabled={loading}
-                        />
-                      </label>
-                      
-                      {uploadedFiles.ladder && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                          <p className="text-green-800 font-semibold">
-                            ✅ {ladderQuestions.length} soal tangga telah dimuat
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Soal Ular */}
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-                    <h3 className="font-bold text-lg mb-3 text-red-600">🐍 Soal Penyelamat Ular</h3>
-                    <div className="space-y-3">
-                      <button
-                        onClick={() => downloadTemplate('snake')}
-                        className="w-full flex items-center justify-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition"
-                      >
-                        <DownloadIcon />
-                        Download Template Soal Ular
-                      </button>
-                      
-                      <label className="w-full flex items-center justify-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition cursor-pointer">
-                        <UploadIcon />
-                        {loading ? 'Memuat...' : 'Upload Soal Ular (CSV)'}
-                        <input
-                          type="file"
-                          accept=".csv"
-                          onChange={(e) => handleFileUpload(e, 'snake')}
-                          className="hidden"
-                          disabled={loading}
-                        />
-                      </label>
-                      
-                      {uploadedFiles.snake && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                          <p className="text-green-800 font-semibold">
-                            ✅ {snakeQuestions.length} soal ular telah dimuat
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
                   <button
                     onClick={clearAllData}
                     className="w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition"
@@ -959,6 +848,7 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
       return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-2">
           <WinnerPopup />
+          <SnakeLadderModal />
           
           <div className="max-w-7xl mx-auto">
             <div className="bg-white rounded-xl shadow-lg p-3 mb-3 flex items-center justify-between">
@@ -1002,7 +892,7 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
               </div>
 
               <div className="space-y-3">
-                {!ladderBonusQuestion && !snakeSaveQuestion && currentQuestion && !showAnswer && (
+                {!showSnakeLadderModal && currentQuestion && !showAnswer && (
                   <div className="bg-white rounded-xl shadow-lg p-3">
                     <h3 className="font-bold text-md mb-2">🛠️ Bantuan Kelompok {currentTeam}</h3>
                     <div className="space-y-1">
@@ -1031,7 +921,7 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
                   </div>
                 )}
 
-                {currentQuestion && !ladderBonusQuestion && !snakeSaveQuestion && (
+                {currentQuestion && !showSnakeLadderModal && (
                   <div className="bg-white rounded-xl shadow-lg p-3">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-bold text-md">
@@ -1050,7 +940,7 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
                     </div>
                     
                     <div className="space-y-1">
-                      {currentQuestion.options.map((option, idx) => {
+                      {currentQuestion.options && currentQuestion.options.map((option, idx) => {
                         const optionLetter = String.fromCharCode(65 + idx);
                         const isCorrect = optionLetter === currentQuestion.correctAnswer;
                         const buttonClass = showAnswer
@@ -1079,79 +969,7 @@ Berapa 9 + 6?;14;15;16;17;B;Penjumlahan dua angka
                     </div>
                   </div>
                 )}
-
-                {ladderBonusQuestion && (
-                  <div className="bg-white rounded-xl shadow-lg p-3 border-2 border-green-400">
-                    <h3 className="font-bold text-md mb-2 text-green-700">
-                      🪜 Soal Tangga Bonus!
-                    </h3>
-                    <p className="mb-2 text-sm">Kotak {ladderBonusQuestion.from} → {ladderBonusQuestion.to}</p>
-                    <p className="font-semibold mb-2 text-sm">{ladderBonusQuestion.question.question}</p>
-                    {ladderBonusQuestion.question.clue && (
-                      <p className="text-xs text-purple-600 mb-2">💡 Clue: {ladderBonusQuestion.question.clue}</p>
-                    )}
-                    <div className="space-y-1">
-                      {ladderBonusQuestion.question.options.map((option, idx) => {
-                        const optionLetter = String.fromCharCode(65 + idx);
-                        const isCorrect = optionLetter === ladderBonusQuestion.question.correctAnswer;
-                        const buttonClass = specialQuestionAnswered
-                          ? isCorrect
-                            ? 'bg-green-200 border-green-500'
-                            : 'bg-red-100 border-red-300'
-                          : 'bg-gray-50 hover:bg-green-100 border-gray-300';
-                        
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => handleLadderBonus(optionLetter)}
-                            disabled={specialQuestionAnswered}
-                            className={`w-full p-2 rounded border text-left transition ${buttonClass} disabled:cursor-not-allowed text-xs`}
-                          >
-                            <span className="font-bold">{optionLetter}.</span> {option}
-                            {specialQuestionAnswered && isCorrect && ' ✓'}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {snakeSaveQuestion && (
-                  <div className="bg-white rounded-xl shadow-lg p-3 border-2 border-red-400">
-                    <h3 className="font-bold text-md mb-2 text-red-700">
-                      🐍 Soal Penyelamat Ular!
-                    </h3>
-                    <p className="mb-2 text-sm">Kotak {snakeSaveQuestion.from} → {snakeSaveQuestion.to}</p>
-                    <p className="font-semibold mb-2 text-sm">{snakeSaveQuestion.question.question}</p>
-                    {snakeSaveQuestion.question.clue && (
-                      <p className="text-xs text-purple-600 mb-2">💡 Clue: {snakeSaveQuestion.question.clue}</p>
-                    )}
-                    <div className="space-y-1">
-                      {snakeSaveQuestion.question.options.map((option, idx) => {
-                        const optionLetter = String.fromCharCode(65 + idx);
-                        const isCorrect = optionLetter === snakeSaveQuestion.question.correctAnswer;
-                        const buttonClass = specialQuestionAnswered
-                          ? isCorrect
-                            ? 'bg-green-200 border-green-500'
-                            : 'bg-red-100 border-red-300'
-                          : 'bg-gray-50 hover:bg-green-100 border-gray-300';
-                        
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => handleSnakeSave(optionLetter)}
-                            disabled={specialQuestionAnswered}
-                            className={`w-full p-2 rounded border text-left transition ${buttonClass} disabled:cursor-not-allowed text-xs`}
-                          >
-                            <span className="font-bold">{optionLetter}.</span> {option}
-                            {specialQuestionAnswered && isCorrect && ' ✓'}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
+                
                 {gameState === 'finished' && !showWinnerPopup && (
                   <div className="bg-white rounded-xl shadow-lg p-4 text-center">
                     <h3 className="text-xl font-bold mb-2">Permainan Selesai</h3>
