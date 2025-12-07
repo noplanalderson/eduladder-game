@@ -259,9 +259,24 @@
       };
 
       const handleTimeout = () => {
-        if (currentQuestion) {
-          alert(`Waktu habis! Kelompok ${currentTeam} mundur ${currentQuestion.penalty} langkah.`);
-          moveToken(currentTeam, -currentQuestion.penalty, true);
+        if (currentQuestion && !showAnswer) {
+          const answeringTeam = questionThrown ? (currentTeam === 'A' ? 'B' : 'A') : currentTeam;
+          alert(`Waktu habis! Kelompok ${answeringTeam} mundur ${currentQuestion.penalty} langkah.`);
+          
+          setShowAnswer(true);  // ✅ Tandai jawaban sudah ditampilkan
+          if (questionTimerRef.current) {
+            clearInterval(questionTimerRef.current);
+          }
+          
+          // Tandai soal sebagai digunakan
+          setQuestions(prev => prev.map(q => 
+            q.id === currentQuestion.id ? { ...q, used: true } : q
+          ));
+          
+          // ✅ Panggil moveToken dan tunggu, maka nextTurn akan dipanggil otomatis
+          setTimeout(() => {
+            moveToken(answeringTeam, -currentQuestion.penalty, true);
+          }, 1000);
         }
       };
 
